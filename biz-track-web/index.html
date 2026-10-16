@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/BizTrackGrowthLogoVertical.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Biz Track</title>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #ffffff;">
+    <div id="root">
+      <div style="position: fixed; inset: 0; width: 100vw; height: 100vh; background-color: #ffffff; display: flex; align-items: center; justify-content: center; z-index: 99999;">
+        <img src="/BizTrackGrowthLogoVertical.png" alt="Biz Track" style="width: 210px; max-width: 70vw; height: auto; animation: bizPulse 1.8s ease-in-out infinite;" />
+      </div>
+      <style>
+        @keyframes bizPulse {
+          0%, 100% { transform: scale(0.96); opacity: 0.55; }
+          50% { transform: scale(1.02); opacity: 1; }
+        }
+      </style>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
