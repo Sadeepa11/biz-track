@@ -20,10 +20,28 @@ import {
 
 const router = Router();
 
+import { R2Service } from '../services/r2.service';
+
 // Multer memory storage for direct streaming to Cloudflare R2
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
+});
+
+// Stream image from Cloudflare R2
+router.get('/r2/:key(*)', async (req, res) => {
+  try {
+    const key = req.params.key;
+    const obj = await R2Service.getObject(key);
+    if (!obj || !obj.stream) {
+      return res.status(404).json({ success: false, message: 'Image not found' });
+    }
+    res.setHeader('Content-Type', obj.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    obj.stream.pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // Stats

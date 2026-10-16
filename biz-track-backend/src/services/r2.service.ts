@@ -1,4 +1,5 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
 
@@ -9,7 +10,7 @@ export class R2Service {
     const accountId = process.env.R2_ACCOUNT_ID?.trim();
     const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
     const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
-    const bucket = process.env.R2_BUCKET_NAME?.trim() || 'biztrack-orders';
+    const bucket = process.env.R2_BUCKET_NAME?.trim() || 'biz-track';
     const publicUrl = (process.env.R2_PUBLIC_URL?.trim() || '').replace(/\/$/, '');
 
     const isConfigured = Boolean(
@@ -46,6 +47,7 @@ export class R2Service {
     const ext = path.extname(originalName) || (mimeType.includes('png') ? '.png' : '.jpg');
     const filename = `order-${Date.now()}-${Math.random().toString(36).slice(2, 7)}${ext}`;
     const objectKey = `orders/${filename}`;
+    const port = process.env.PORT || '5000';
 
     const { client, bucket, publicUrl } = this.getClient();
 
@@ -63,7 +65,7 @@ export class R2Service {
 
         const url = publicUrl
           ? `${publicUrl}/${objectKey}`
-          : `https://${bucket}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${objectKey}`;
+          : `http://localhost:${port}/api/r2/${objectKey}`;
 
         console.log('✅ Uploaded to Cloudflare R2 successfully:', url);
         return url;
@@ -83,9 +85,35 @@ export class R2Service {
     const localFilePath = path.join(uploadDir, filename);
     fs.writeFileSync(localFilePath, buffer);
 
-    const port = process.env.PORT || '5000';
     const localUrl = `http://localhost:${port}/uploads/orders/${filename}`;
     console.log('📁 Stored locally at:', localUrl);
     return localUrl;
+  }
+
+  /**
+   * Retrieve an object from Cloudflare R2 to stream to clients
+   */
+  static async getObject(key: string): Promise<{ stream: Readable; contentType: string } | null> {
+    const { client, bucket } = this.getClient();
+    if (!client) return null;
+
+    try {
+      const response = await client.send(
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+        })
+      );
+
+      if (!response.Body) return null;
+
+      return {
+        stream: response.Body as Readable,
+        contentType: response.ContentType || 'image/jpeg',
+      };
+    } catch (err: any) {
+      console.error('Error fetching object from R2:', err.message);
+      return null;
+    }
   }
 }
