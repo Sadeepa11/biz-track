@@ -7,6 +7,7 @@ interface OrderCardProps {
   onToggleStatus?: (order: Order) => void;
   onEdit?: (order: Order) => void;
   onDelete?: (order: Order) => void;
+  onViewPhoto?: (order: Order) => void;
 }
 
 export default function OrderCard({
@@ -15,6 +16,7 @@ export default function OrderCard({
   onToggleStatus,
   onEdit,
   onDelete,
+  onViewPhoto,
 }: OrderCardProps) {
   const isDone = order.status === 'delivered';
   const mapsQuery = encodeURIComponent(order.address);
@@ -63,6 +65,25 @@ export default function OrderCard({
           </b>
         </div>
 
+        {/* Proof of Delivery Photo Card */}
+        {order.orderImage ? (
+          <div
+            onClick={() => onViewPhoto?.(order)}
+            className="flex items-center gap-2.5 p-2 mt-2 bg-[#f0f7ff] border border-[#cce3ff] rounded-xl cursor-pointer hover:bg-[#e4f1ff] transition-colors"
+          >
+            <img
+              src={order.orderImage}
+              alt="Delivery Proof"
+              className="w-11 h-11 object-cover rounded-lg border border-[#cce3ff] bg-[#dbe9fa] shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-bold text-[#153765]">📸 Proof of Delivery</p>
+              <p className="text-[10.5px] text-[#71829e] truncate">Cloudflare R2 · Click to view photo</p>
+            </div>
+            <span className="text-[11px] font-bold text-[#1769e8] px-2 shrink-0">View 🔍</span>
+          </div>
+        ) : null}
+
         {/* Action Links */}
         <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-[#edf2f9]">
           <a
@@ -92,10 +113,10 @@ export default function OrderCard({
               className={`flex-1 py-2 px-3 rounded-xl text-[12px] font-bold transition-colors cursor-pointer ${
                 isDone
                   ? 'border border-[#dbe9fa] bg-[#f6f9fe] text-[#153765] hover:bg-[#edf5ff]'
-                  : 'bg-[#1769e8] hover:bg-[#1258c7] text-white'
+                  : 'bg-[#059669] hover:bg-[#047857] text-white shadow-xs'
               }`}
             >
-              {isDone ? 'Mark Pending' : '✓ Mark Delivered'}
+              {isDone ? '✓ Delivered (Revert)' : '📸 Complete Delivery'}
             </button>
 
             <button

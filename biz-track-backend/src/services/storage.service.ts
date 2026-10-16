@@ -71,7 +71,7 @@ export class StorageService {
 
   // --- Orders ---
   static async getOrders(filters?: { status?: string; search?: string }): Promise<Order[]> {
-    let query = 'SELECT id, customer, phone, address, quantity, date, status FROM orders WHERE 1=1';
+    let query = 'SELECT id, customer, phone, address, quantity, date, status, order_image AS "orderImage" FROM orders WHERE 1=1';
     const params: unknown[] = [];
 
     if (filters?.status && filters.status !== 'all') {
@@ -93,7 +93,7 @@ export class StorageService {
 
   static async getOrderById(id: string): Promise<Order | null> {
     const res = await safeQuery(
-      'SELECT id, customer, phone, address, quantity, date, status FROM orders WHERE id = $1',
+      'SELECT id, customer, phone, address, quantity, date, status, order_image AS "orderImage" FROM orders WHERE id = $1',
       [id]
     );
     return res.rows[0] || null;
@@ -104,12 +104,13 @@ export class StorageService {
     const date = orderData.date || todayDate();
     const status = orderData.status || 'pending';
     const quantity = Number(orderData.quantity) || 1;
+    const orderImage = orderData.orderImage || null;
 
     const res = await safeQuery(
-      `INSERT INTO orders (id, customer, phone, address, quantity, date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, customer, phone, address, quantity, date, status`,
-      [id, orderData.customer.trim(), orderData.phone.trim(), orderData.address.trim(), quantity, date, status]
+      `INSERT INTO orders (id, customer, phone, address, quantity, date, status, order_image)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, customer, phone, address, quantity, date, status, order_image AS "orderImage"`,
+      [id, orderData.customer.trim(), orderData.phone.trim(), orderData.address.trim(), quantity, date, status, orderImage]
     );
 
     return res.rows[0];
@@ -125,15 +126,27 @@ export class StorageService {
     const quantity = updates.quantity !== undefined ? Number(updates.quantity) : current.quantity;
     const date = updates.date || current.date;
     const status = updates.status || current.status;
+    const orderImage = updates.orderImage !== undefined ? updates.orderImage : current.orderImage;
 
     const res = await safeQuery(
       `UPDATE orders
-       SET customer = $1, phone = $2, address = $3, quantity = $4, date = $5, status = $6
-       WHERE id = $7
-       RETURNING id, customer, phone, address, quantity, date, status`,
-      [customer, phone, address, quantity, date, status, id]
+       SET customer = $1, phone = $2, address = $3, quantity = $4, date = $5, status = $6, order_image = $7
+       WHERE id = $8
+       RETURNING id, customer, phone, address, quantity, date, status, order_image AS "orderImage"`,
+      [customer, phone, address, quantity, date, status, orderImage, id]
     );
 
+    return res.rows[0] || null;
+  }
+
+  static async completeDelivery(id: string, imageUrl: string): Promise<Order | null> {
+    const res = await safeQuery(
+      `UPDATE orders
+       SET status = 'delivered', order_image = $1
+       WHERE id = $2
+       RETURNING id, customer, phone, address, quantity, date, status, order_image AS "orderImage"`,
+      [imageUrl, id]
+    );
     return res.rows[0] || null;
   }
 
@@ -143,7 +156,7 @@ export class StorageService {
 
     const newStatus = current.status === 'delivered' ? 'pending' : 'delivered';
     const res = await safeQuery(
-      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, customer, phone, address, quantity, date, status',
+      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, customer, phone, address, quantity, date, status, order_image AS "orderImage"',
       [newStatus, id]
     );
 

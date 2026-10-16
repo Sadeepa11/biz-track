@@ -121,8 +121,14 @@ export async function initDatabase(): Promise<boolean> {
             quantity INTEGER NOT NULL DEFAULT 1,
             date TEXT NOT NULL,
             status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            order_image TEXT,
             created_at TIMESTAMPTZ DEFAULT NOW()
           );
+        `);
+
+        // Migration: Ensure order_image column exists on existing Neon tables
+        await client.query(`
+          ALTER TABLE orders ADD COLUMN IF NOT EXISTS order_image TEXT;
         `);
 
         // 3. Transactions table

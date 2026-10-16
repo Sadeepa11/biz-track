@@ -271,6 +271,37 @@ export const biztrackStorage = {
     return order!;
   },
 
+  async completeDelivery(id: string, imageBase64: string): Promise<Order> {
+    const local = await this.getLocalData();
+    const idx = local.orders.findIndex((o: Order) => o.id === id);
+    if (idx !== -1) {
+      local.orders[idx] = {
+        ...local.orders[idx],
+        status: 'delivered',
+        orderImage: imageBase64,
+      };
+      await this.saveLocalData(local);
+    }
+
+    try {
+      const res = await requestApi(`/orders/${id}/deliver`, {
+        method: 'POST',
+        body: JSON.stringify({ imageBase64 }),
+      });
+      const json = await res.json();
+      if (json.success && json.data) {
+        const l = await this.getLocalData();
+        const lIdx = l.orders.findIndex((o: Order) => o.id === id);
+        if (lIdx !== -1) l.orders[lIdx] = json.data;
+        await this.saveLocalData(l);
+        return json.data;
+      }
+    } catch (e) {
+      console.warn('Could not complete delivery via backend, using local fallback:', e);
+    }
+    return local.orders[idx];
+  },
+
   async deleteOrder(id: string): Promise<boolean> {
     const local = await this.getLocalData();
     local.orders = local.orders.filter((o: Order) => o.id !== id);

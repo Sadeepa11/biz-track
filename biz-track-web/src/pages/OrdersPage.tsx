@@ -9,6 +9,7 @@ interface OrdersPageProps {
   onEditOrder: (order: Order) => void;
   onDeleteOrder: (order: Order) => void;
   onNewOrder: () => void;
+  onViewPhoto?: (order: Order) => void;
 }
 
 type FilterStatus = 'all' | 'pending' | 'delivered';
@@ -19,6 +20,7 @@ export function OrdersPage({
   onEditOrder,
   onDeleteOrder,
   onNewOrder,
+  onViewPhoto,
 }: OrdersPageProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterStatus>('all');
@@ -122,6 +124,7 @@ export function OrdersPage({
               onToggleStatus={onToggleStatus}
               onEdit={onEditOrder}
               onDelete={onDeleteOrder}
+              onViewPhoto={onViewPhoto}
             />
           ))}
         </div>

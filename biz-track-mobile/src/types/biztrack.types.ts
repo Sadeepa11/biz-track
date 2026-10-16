@@ -16,6 +16,7 @@ export interface Order {
   quantity: number;
   date: string;
   status: OrderStatus;
+  orderImage?: string | null;
 }
 
 export type TransactionType = 'income' | 'expense';

@@ -18,6 +18,7 @@ import OrdersPage from './pages/OrdersPage';
 import MoneyPage from './pages/MoneyPage';
 import SettingsPage from './pages/SettingsPage';
 import SplashScreen from './components/SplashScreen';
+import DeliveryProofDialog from './components/DeliveryProofDialog';
 
 export type AppTab = 'home' | 'orders' | 'money' | 'settings';
 
@@ -45,6 +46,10 @@ export default function App() {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<TransactionType>('income');
+
+  // Delivery Proof states
+  const [deliveringOrder, setDeliveringOrder] = useState<Order | null>(null);
+  const [viewingPhotoOrder, setViewingPhotoOrder] = useState<Order | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -131,15 +136,31 @@ export default function App() {
   };
 
   const handleToggleOrderStatus = async (order: Order) => {
+    if (order.status !== 'delivered') {
+      // Open proof photo capture modal
+      setDeliveringOrder(order);
+    } else {
+      if (!confirm(`Revert order #${order.id.slice(-5)} for ${order.customer} back to Pending?`)) return;
+      try {
+        const updated = await biztrackApi.toggleOrderStatus(order.id);
+        setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+        showToast('Marked as Pending');
+        await refreshStats();
+      } catch {
+        showToast('Error updating status');
+      }
+    }
+  };
+
+  const handleConfirmDelivery = async (orderId: string, imageBase64: string) => {
     try {
-      const updated = await biztrackApi.toggleOrderStatus(order.id);
+      showToast('☁️ Uploading proof photo to R2...');
+      const updated = await biztrackApi.completeDelivery(orderId, imageBase64);
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-      showToast(
-        updated.status === 'delivered' ? 'Marked as Delivered' : 'Marked as Pending'
-      );
+      showToast('✓ Delivery completed with photo proof!');
       await refreshStats();
     } catch {
-      showToast('Error updating status');
+      showToast('Error completing delivery');
     }
   };
 
@@ -269,6 +290,7 @@ export default function App() {
               onDeleteOrder={handleDeleteOrder}
               onNavigateToOrders={() => setActiveTab('orders')}
               onNewOrder={handleOpenNewOrder}
+              onViewPhoto={(order) => setViewingPhotoOrder(order)}
             />
           )}
 
@@ -279,6 +301,7 @@ export default function App() {
               onEditOrder={handleOpenEditOrder}
               onDeleteOrder={handleDeleteOrder}
               onNewOrder={handleOpenNewOrder}
+              onViewPhoto={(order) => setViewingPhotoOrder(order)}
             />
           )}
 
@@ -323,6 +346,22 @@ export default function App() {
         currency={settings.currency || 'LKR'}
         onClose={() => setTransactionDialogOpen(false)}
         onSubmit={handleSaveTransaction}
+      />
+
+      {/* Delivery Proof Modals */}
+      <DeliveryProofDialog
+        isOpen={!!deliveringOrder}
+        mode="capture"
+        order={deliveringOrder}
+        onClose={() => setDeliveringOrder(null)}
+        onConfirmDelivery={handleConfirmDelivery}
+      />
+
+      <DeliveryProofDialog
+        isOpen={!!viewingPhotoOrder}
+        mode="view"
+        order={viewingPhotoOrder}
+        onClose={() => setViewingPhotoOrder(null)}
       />
 
       {/* Toast Notification */}

@@ -36,8 +36,15 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "BizDesk uses your location to show it on the map.",
-          "locationAlwaysAndWhenInUsePermission": "BizDesk uses your location to show it on the map."
+          "locationWhenInUsePermission": "BizTrack uses your location to show it on the map.",
+          "locationAlwaysAndWhenInUsePermission": "BizTrack uses your location to show it on the map."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BizTrack needs access to your photos to attach delivery proof.",
+          "cameraPermission": "BizTrack needs access to your camera to capture proof of completed delivery."
         }
       ]
     ],

@@ -252,6 +252,41 @@ export const biztrackApi = {
     return order!;
   },
 
+  async completeDelivery(id: string, imageBase64: string): Promise<Order> {
+    const local = getLocalData();
+    const idx = local.orders.findIndex((o: Order) => o.id === id);
+    if (idx !== -1) {
+      local.orders[idx] = {
+        ...local.orders[idx],
+        status: 'delivered',
+        orderImage: imageBase64,
+      };
+      saveLocalData(local);
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/orders/${id}/deliver`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64 }),
+        cache: 'no-store',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const l = getLocalData();
+          const lIdx = l.orders.findIndex((o: Order) => o.id === id);
+          if (lIdx !== -1) l.orders[lIdx] = json.data;
+          saveLocalData(l);
+          return json.data;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend completeDelivery failed, using local update:', e);
+    }
+    return local.orders[idx];
+  },
+
   async deleteOrder(id: string): Promise<boolean> {
     // Immediately delete from local storage
     const local = getLocalData();

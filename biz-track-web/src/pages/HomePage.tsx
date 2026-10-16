@@ -11,6 +11,7 @@ interface HomePageProps {
   onDeleteOrder: (order: Order) => void;
   onNavigateToOrders: () => void;
   onNewOrder: () => void;
+  onViewPhoto?: (order: Order) => void;
 }
 
 export function HomePage({
@@ -22,6 +23,7 @@ export function HomePage({
   onDeleteOrder,
   onNavigateToOrders,
   onNewOrder,
+  onViewPhoto,
 }: HomePageProps) {
   const pendingOrders = orders
     .filter((o) => o.status !== 'delivered')
@@ -143,6 +145,7 @@ export function HomePage({
                 onToggleStatus={onToggleStatus}
                 onEdit={onEditOrder}
                 onDelete={onDeleteOrder}
+                onViewPhoto={onViewPhoto}
               />
             </div>
           ) : (
@@ -175,6 +178,7 @@ export function HomePage({
                     onToggleStatus={onToggleStatus}
                     onEdit={onEditOrder}
                     onDelete={onDeleteOrder}
+                    onViewPhoto={onViewPhoto}
                   />
                 ))}
               </div>

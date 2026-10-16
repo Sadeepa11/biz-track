@@ -15,6 +15,7 @@ import {
 
 const logoHorizontal = require('../../assets/images/BizTrackGrowthLogoHorizontal.png');
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import type {
   BusinessSettings,
   Order,
@@ -59,6 +60,10 @@ export default function BizTrackMobileApp() {
 
   // Toast
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  // Delivery Proof Photo viewing state
+  const [viewingPhotoOrder, setViewingPhotoOrder] = useState<Order | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Order modal state
   const [orderModalOpen, setOrderModalOpen] = useState(false);
@@ -215,16 +220,86 @@ export default function BizTrackMobileApp() {
     }
   };
 
-  const toggleOrderStatus = async (order: Order) => {
+  const completeDeliveryWithCamera = async (order: Order) => {
     try {
-      const updated = await biztrackStorage.toggleOrderStatus(order.id);
+      // 1. Request camera permission on the spot if not already granted
+      const { status: existingStatus } = await ImagePicker.getCameraPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        Alert.alert(
+          'Camera Permission Required',
+          'Camera permission is required to capture proof of delivery. Please enable camera access in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // 2. Launch Camera immediately to snap photo
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        showToast('Delivery capture cancelled');
+        return;
+      }
+
+      const asset = result.assets[0];
+      const base64Data = asset.base64
+        ? `data:image/jpeg;base64,${asset.base64}`
+        : asset.uri;
+
+      setIsUploadingPhoto(true);
+      showToast('☁️ Uploading proof photo to R2...');
+
+      const updated = await biztrackStorage.completeDelivery(order.id, base64Data);
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-      showToast(
-        updated.status === 'delivered' ? '✓ Marked Delivered' : 'Marked Pending'
-      );
+      showToast('✓ Delivery completed with photo proof!');
       await refreshStats();
-    } catch {
-      showToast('Error updating status');
+    } catch (err: any) {
+      console.warn('Camera delivery error:', err);
+      showToast('Error capturing delivery photo');
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const toggleOrderStatus = async (order: Order) => {
+    if (order.status !== 'delivered') {
+      // Complete delivery requires capturing proof photo with camera
+      await completeDeliveryWithCamera(order);
+    } else {
+      // Revert from Delivered to Pending
+      Alert.alert(
+        'Revert to Pending',
+        `Revert delivery status for order #${order.id.slice(-5)} (${order.customer}) back to Pending?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Mark Pending',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const updated = await biztrackStorage.toggleOrderStatus(order.id);
+                setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+                showToast('Marked as Pending');
+                await refreshStats();
+              } catch {
+                showToast('Error updating status');
+              }
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -450,14 +525,30 @@ export default function BizTrackMobileApp() {
             </TouchableOpacity>
           </View>
 
+          {o.orderImage ? (
+            <TouchableOpacity
+              style={styles.proofCard}
+              onPress={() => setViewingPhotoOrder(o)}
+              activeOpacity={0.8}
+            >
+              <Image source={{ uri: o.orderImage }} style={styles.proofThumb} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.proofLabel}>📸 Proof of Delivery</Text>
+                <Text style={styles.proofHint}>Cloudflare R2 · Tap to view photo</Text>
+              </View>
+              <Text style={styles.proofBadgeAction}>View 🔍</Text>
+            </TouchableOpacity>
+          ) : null}
+
           {!compact && (
             <View style={[styles.actionRow, { marginTop: 8 }]}>
               <TouchableOpacity
-                style={[styles.btn, isDone ? styles.btnMuted : styles.btnPrimary, { flex: 1.4 }]}
+                style={[styles.btn, isDone ? styles.btnMuted : styles.btnSuccess, { flex: 1.5 }]}
                 onPress={() => toggleOrderStatus(o)}
+                disabled={isUploadingPhoto}
               >
-                <Text style={isDone ? styles.btnMutedText : styles.btnPrimaryText}>
-                  {isDone ? 'Mark Pending' : '✓ Mark Delivered'}
+                <Text style={isDone ? styles.btnMutedText : styles.btnSuccessText}>
+                  {isDone ? '✓ Delivered (Revert)' : '📸 Complete Delivery'}
                 </Text>
               </TouchableOpacity>
 
@@ -1068,6 +1159,84 @@ export default function BizTrackMobileApp() {
         </View>
       </Modal>
 
+      {/* --- Delivery Proof Photo Modal --- */}
+      <Modal visible={!!viewingPhotoOrder} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalBox, { maxWidth: 390, maxHeight: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalTitle}>Proof of Delivery</Text>
+                <Text style={{ fontSize: 11.5, color: '#71829e', marginTop: 2 }}>
+                  {viewingPhotoOrder?.customer} · #{viewingPhotoOrder?.id.slice(-5)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setViewingPhotoOrder(null)}
+                style={styles.modalCloseBtn}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+              {viewingPhotoOrder?.orderImage ? (
+                <Image
+                  source={{ uri: viewingPhotoOrder.orderImage }}
+                  style={{
+                    width: '100%',
+                    height: 280,
+                    borderRadius: 14,
+                    backgroundColor: '#eef4fb',
+                  }}
+                  resizeMode="cover"
+                />
+              ) : null}
+
+              <View
+                style={{
+                  marginTop: 14,
+                  backgroundColor: '#f5f9ff',
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#dceafb',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: '#153765',
+                    marginBottom: 4,
+                  }}
+                >
+                  Delivery Verification Info
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#4a5d78', marginBottom: 2 }}>
+                  Customer: <Text style={{ fontWeight: '600' }}>{viewingPhotoOrder?.customer}</Text>
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#4a5d78', marginBottom: 2 }}>
+                  Address: <Text style={{ fontWeight: '600' }}>{viewingPhotoOrder?.address}</Text>
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#4a5d78', marginBottom: 2 }}>
+                  Phone: <Text style={{ fontWeight: '600' }}>{viewingPhotoOrder?.phone}</Text>
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#4a5d78' }}>
+                  Delivery Date: <Text style={{ fontWeight: '600' }}>{viewingPhotoOrder?.date}</Text>
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.btn, styles.btnPrimary, { marginTop: 14 }]}
+                onPress={() => setViewingPhotoOrder(null)}
+              >
+                <Text style={styles.btnPrimaryText}>Done</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* Toast */}
       {toastMsg && (
         <View style={styles.toast}>
@@ -1635,5 +1804,45 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11.5,
     fontWeight: '600',
+  },
+  btnSuccess: {
+    backgroundColor: '#059669',
+  },
+  btnSuccessText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  proofCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f7ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cce3ff',
+    padding: 8,
+    marginTop: 8,
+  },
+  proofThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#dbe9fa',
+  },
+  proofLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#153765',
+  },
+  proofHint: {
+    fontSize: 10,
+    color: '#71829e',
+    marginTop: 1,
+  },
+  proofBadgeAction: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1769e8',
+    paddingHorizontal: 8,
   },
 });

@@ -24,9 +24,12 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
+
+// Static serving for local uploads fallback
+app.use('/uploads', express.static('public/uploads'));
 
 // Welcome root endpoint
 app.get('/', (_req: Request, res: Response) => {
