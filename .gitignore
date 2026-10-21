@@ -23,10 +23,10 @@ pnpm-debug.log*
 # System & IDE files
 .DS_Store
 Thumbs.db
-.vscode/
 .idea/
 .claude/
 
 # Temporary / cache files
 *.tsbuildinfo
 .eslintcache
+config.bat
